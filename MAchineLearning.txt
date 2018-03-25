@@ -1,0 +1,572 @@
+1.Defining a test harness.
+2.Building multiple predictive models from the data.
+3.Comparing models and selecting a short list.
+
+
+Caret R Package for Applied Predictive Modeling
+#
+1.Defining a test harness.
+
+# load libraries
+library(mlbench)
+library(caret)
+ 
+# load data
+data(PimaIndiansDiabetes)
+# rename dataset to keep code below generic
+dataset <- PimaIndiansDiabetes
+
+
+Test Options
+
+1.Train/Test split: if you have a lot of data and determine you need a lot of data to build accurate models
+2.Cross Validation: 5 folds or 10 folds provide a commonly used tradeoff of speed of compute time and generalize error estimate.
+3.Repeated Cross Validation: 5- or 10-fold cross validation and 3 or more repeats to give a more robust estimate, only if you have a small dataset and can afford the time.
+
+
+#
+Data Split
+
+Data splitting involves partitioning the data into an explicit training dataset used to prepare the model and an unseen test dataset 
+used to evaluate the models performance on unseen data.
+It is useful when you have a very large dataset so that the test dataset can provide a meaningful estimation of performance, or for when you are using slow methods and need a quick approximation of performance.
+
+============================================================
+ Data Training method
+The example below splits the iris dataset so that 80% is used for training a Naive Bayes model and 20% is used to evaluate the models performance.
+
+# load the libraries
+library(caret)
+library(klaR)
+# load the iris dataset
+data(iris)
+# define an 80%/20% train/test split of the dataset
+split=0.80
+trainIndex <- createDataPartition(iris$Species, p=split, list=FALSE)
+data_train <- iris[ trainIndex,]
+data_test <- iris[-trainIndex,]
+# train a naive bayes model
+model <- NaiveBayes(Species~., data=data_train)
+# make predictions
+x_test <- data_test[,1:4]
+y_test <- data_test[,5]
+predictions <- predict(model, x_test)
+# summarize results
+confusionMatrix(predictions$class, y_test)
+
+==================================================================
+Bootstrap
+
+Bootstrap resampling involves taking random samples from the dataset (with re-selection) against which to evaluate the model.
+ In aggregate, the results provide an indication of the variance of the models performance. 
+ Typically, large number of resampling iterations are performed (thousands or tends of thousands).
+
+The following example uses a bootstrap with 10 resamples to prepare a Naive Bayes model.
+# load the library
+library(caret)
+# load the iris dataset
+data(iris)
+# define training control
+train_control <- trainControl(method="boot", number=100)
+# train the model
+model <- train(Species~., data=iris, trControl=train_control, method="nb")
+# summarize results
+print(model)
+
+===========================================================================
+k-fold Cross Validation
+The k-fold cross validation method involves splitting the dataset into k-subsets. For each subset is held out while the model is trained on all other subsets. This process is completed until accuracy is determine for each instance in the dataset, and an overall accuracy estimate is provided.
+
+It is a robust method for estimating accuracy, and the size of k and tune the amount of bias in the estimate, with popular values set to 3, 5, 7 and 10.
+
+The following example uses 10-fold cross validation to estimate Naive Bayes on the iris dataset.
+
+
+# load the library
+library(caret)
+# load the iris dataset
+data(iris)
+# define training control
+train_control <- trainControl(method="cv", number=10)
+# fix the parameters of the algorithm
+grid <- expand.grid(.fL=c(0), .usekernel=c(FALSE))
+# train the model
+model <- train(Species~., data=iris, trControl=train_control, method="nb", tuneGrid=grid)
+# summarize results
+print(model)
+
+===============================================================================
+Repeated k-fold Cross Validation
+The process of splitting the data into k-folds can be repeated a number of times, this is called Repeated k-fold Cross Validation. The final model accuracy is taken as the mean from the number of repeats.
+
+The following example uses 10-fold cross validation with 3 repeats to estimate Naive Bayes on the iris dataset.
+
+# load the library
+library(caret)
+# load the iris dataset
+data(iris)
+# define training control
+train_control <- trainControl(method="repeatedcv", number=10, repeats=3)
+# train the model
+model <- train(Species~., data=iris, trControl=train_control, method="nb")
+# summarize results
+print(model)
+==================================================================================
+Leave One Out Cross Validation
+In Leave One Out Cross Validation (LOOCV), a data instance is left out and a model constructed on all other data instances in the training set. This is repeated for all data instances.
+
+The following example demonstrates LOOCV to estimate Naive Bayes on the iris dataset
+
+
+# load the library
+library(caret)
+# load the iris dataset
+data(iris)
+# define training control
+train_control <- trainControl(method="LOOCV")
+# train the model
+model <- train(Species~., data=iris, trControl=train_control, method="nb")
+# summarize results
+print(model)
+
+========================================================================================
+Summary
+In this post you discovered 5 different methods that you can use to estimate the accuracy of your model on unseen data.
+Those methods were: Data Split, Bootstrap, k-fold Cross Validation, Repeated k-fold Cross Validation, and Leave One Out Cross Validation.
+===============================================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+In this case study we will use 10-fold cross validation with 3 repeats.
+
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+seed <- 7
+1
+2
+
+Test Metric
+
+Classification:
+
+Accuracy: x correct divided by y total instances. Easy to understand and widely used.
+Kappa: easily understood as accuracy that takes the base distribution of classes into account.
+Regression:
+
+RMSE: root mean squared error. Again, easy to understand and widely used.
+Rsquared: the goodness of fit or coefficient of determination.
+Other popular measures include ROC and LogLoss.
+
+The evaluation metric is specified the call to the train() function for a given model, so we will define the metric now for use with all of the model training later.
+
+metric <- "Accuracy"
+
+
+#
+2.2. Model Building
+
+
+Algorithms
+
+It is important to have a good mix of algorithm representations (lines, trees, instances, etc.) as well as algorithms for learning those representations.
+A good rule of thumb I use is “a few of each”, for example in the case of binary classification:
+
+Linear methods: Linear Discriminant Analysis and Logistic Regression.
+Non-Linear methods: Neural Network, SVM, kNN and Naive Bayes
+Trees and Rules: CART, J48 and PART
+Ensembles of Trees: C5.0, Bagged CART, Random Forest and Stochastic Gradient Boosting
+
+Data Preprocessing
+The most useful transform is to scale and center the data via. For example:
+
+
+
+preProcess=c("center", "scale")
+
+
+Algorithm Spot Check
+
+Below are the models that we will spot check for this diabetes case study.
+
+
+# Linear Discriminant Analysis
+set.seed(seed)
+fit.lda <- train(diabetes~., data=dataset, method="lda", metric=metric, preProc=c("center", "scale"), trControl=control)
+# Logistic Regression
+set.seed(seed)
+fit.glm <- train(diabetes~., data=dataset, method="glm", metric=metric, trControl=control)
+# GLMNET
+set.seed(seed)
+fit.glmnet <- train(diabetes~., data=dataset, method="glmnet", metric=metric, preProc=c("center", "scale"), trControl=control)
+# SVM Radial
+set.seed(seed)
+fit.svmRadial <- train(diabetes~., data=dataset, method="svmRadial", metric=metric, preProc=c("center", "scale"), trControl=control, fit=FALSE)
+# kNN
+set.seed(seed)
+fit.knn <- train(diabetes~., data=dataset, method="knn", metric=metric, preProc=c("center", "scale"), trControl=control)
+# Naive Bayes
+set.seed(seed)
+fit.nb <- train(diabetes~., data=dataset, method="nb", metric=metric, trControl=control)
+# CART
+set.seed(seed)
+fit.cart <- train(diabetes~., data=dataset, method="rpart", metric=metric, trControl=control)
+# C5.0
+set.seed(seed)
+fit.c50 <- train(diabetes~., data=dataset, method="C5.0", metric=metric, trControl=control)
+# Bagged CART
+set.seed(seed)
+fit.treebag <- train(diabetes~., data=dataset, method="treebag", metric=metric, trControl=control)
+# Random Forest
+set.seed(seed)
+fit.rf <- train(diabetes~., data=dataset, method="rf", metric=metric, trControl=control)
+# Stochastic Gradient Boosting (Generalized Boosted Modeling)
+set.seed(seed)
+fit.gbm <- train(diabetes~., data=dataset, method="gbm", metric=metric, trControl=control, verbose=FALSE)
+
+============================
+Create model  with function
+
+create_model <- function(trainData,target) {
+set.seed(120)
+myglm <- glm(target ~ . , data=trainData, family = "binomial")
+return(myglm) }
+
+
+
+
+===============================
+3. Model Selection
+
+Now that we have trained a large and diverse list of models, we need to evaluate and compare them.
+We are not looking for a best model at this stage. The algorithms have not been tuned and can all likely do a lot better than the results you currently see.
+The goal now is to select a handful, perhaps 2-to-5 diverse and well performing algorithms to investigate further.
+
+Now that we have trained a large and diverse list of models, we need to evaluate and compare them.
+
+We are not looking for a best model at this stage. The algorithms have not been tuned and can all likely do a lot better than the results you currently see.
+
+The goal now is to select a handful, perhaps 2-to-5 diverse and well performing algorithms to investigate further.
+
+results <- resamples(list(lda=fit.lda, logistic=fit.glm, glmnet=fit.glmnet,
+	svm=fit.svmRadial, knn=fit.knn, nb=fit.nb, cart=fit.cart, c50=fit.c50,
+	bagging=fit.treebag, rf=fit.rf, gbm=fit.gbm))
+# Table comparison
+summary(results)
+
+It is also useful to review the results using a few different visualization techniques to get an idea of the mean and spread of accuracies.
+
+Compare Machine Learining Algorithms in R Box and Whisker Plots
+# boxplot comparison
+bwplot(results)
+# Dot-plot comparison
+dotplot(results)
+
+From these results, it looks like linear methods do well on this problem. I would probably investigate logistic, lda, glmnet, and gbm further.
+
+
+
+??????
+$$$$$$$$$$$$$$ step 8: Make predictions
+
+score <- predict(myglm, newdata = testData, type = "response")
+score_train <- predict(myglm, newdata = complete, type = "response")
+
+
+
+Step 9 : Check performance
+
+auc(complete$Disbursed,score_train)
+
+
+
+
+********************************************************
+Second:Baska yaklasim
+
+
+Let’s start putting this into action
+I will not include my entire function to give you space to innovate. Here is a skeleton of my algorithm(in R):
+
+Step 1 : Append both train and test data set together
+
+Step 2 : Read data-set to your memory
+
+setwd("C:\\Users\\Tavish\\Desktop\\Kagg\\AV")
+complete <- read.csv("complete_data.csv", stringsAsFactors = TRUE)
+
+Step 3: View the column names/summary of the dataset
+
+colnames(complete )
+[1] "ID" "Gender" "City"  "Monthly_Income" "Disbursed" "train"
+
+
+Step 4: Identify the a) Numeric variable b) ID variables c) Factor Variables d) Target variables
+
+
+Step 5 : Create flags for missing values
+
+missing_val_var <- function(data,variable,new_var_name) {
+data$new_var_name <- ifelse(is.na(variable),1,0))
+return(data$new_var_name)}
+
+Step 6 : Impute Numeric Missing values
+
+numeric_impute <- function(data,variable) {
+mean1 <- mean(data$variable)
+data$variable <- ifelse(is.na(data$variable),mean1,data$variable)
+return(new_var_name)
+}
+Similarly impute categorical variable so that all missing value is coded as a single value say “Null”
+
+Step 7 : Pass the imputed variable into the modelling process
+
+#Challenge: Try to Integrate a K-fold methodology in this step
+
+create_model <- function(trainData,target) {
+set.seed(120)
+myglm <- glm(target ~ . , data=trainData, family = "binomial")
+return(myglm) }
+Step 8 : Make predictions
+
+score <- predict(myglm, newdata = testData, type = "response")
+score_train <- predict(myglm, newdata = complete, type = "response")
+Step 9 : Check performance
+
+auc(complete$Disbursed,score_train)
+And Submit!
+
+
+Time to Practice – Example
+======================================>
+I recently participated in an online hackathon organized by Analytics Vidhya. 
+For making the variable transformation easier, 
+I combined both test and train data in the file complete_data. 
+I started with basic import function and splitted the population in Devlopment, ITV and Scoring.
+
+library(caret)
+rm(list=ls())
+setwd("C:\\Users\\ts93856\\Desktop\\AV")
+library(Metrics)
+complete <- read.csv("complete_data.csv", stringsAsFactors = TRUE)
+train <- complete[complete$Train == 1,]
+score <- complete[complete$Train != 1,]
+set.seed(999)
+ind <- sample(2, nrow(train), replace=T, prob=c(0.60,0.40))
+trainData<-train[ind==1,]
+testData <- train[ind==2,]
+
+set.seed(999)
+ind1 <- sample(2, nrow(testData), replace=T, prob=c(0.50,0.50))
+trainData_ens1<-testData[ind1==1,]
+testData_ens1 <- testData[ind1==2,]
+table(testData_ens1$Disbursed)[2]/nrow(testData_ens1)
+
+#Response Rate of 9.052%
+
+Here is all you need to do, to build a GBM model.
+
+fitControl <- trainControl(method = "repeatedcv", number = 4, repeats = 4)
+trainData$outcome1 <- ifelse(trainData$Disbursed == 1, "Yes","No")
+set.seed(33)
+
+gbmFit1 <- train(as.factor(outcome1) ~ ., data = trainData[,-26], method = "gbm", trControl = fitControl,verbose = FALSE)
+gbm_dev <- predict(gbmFit1, trainData,type= "prob")[,2] 
+gbm_ITV1 <- predict(gbmFit1, trainData_ens1,type= "prob")[,2] 
+gbm_ITV2 <- predict(gbmFit1, testData_ens1,type= "prob")[,2]
+
+auc(trainData$Disbursed,gbm_dev)
+auc(trainData_ens1$Disbursed,gbm_ITV1)
+auc(testData_ens1$Disbursed,gbm_ITV2)
+
+As you will see after running this code, all AUC will come extremely close to 0.84 .
+I will leave the feature engineering upto you, as the competition is still on.
+ You are welcome to use this code to compete though. GBM is the most widely used algorithm. 
+ XGBoost is another faster version of boosting learner which I will cover in any future articles.
+
+ 
+
+End Notes
+I have seen boosting learners extremely quick and highly efficient. They have never disappointed me to get high initial scores on Kaggle and other platforms. However, it all boils down to how well can you do feature engineering.
+
+Have you used Gradient Boosting before? How did the model perform? Have you used boosting learners in any other capacity. If yes, I would love to hear your experiences in the comments section below.
+
+
+
+
+
+
+**********************************************************
+
+fouth yaklasim
+
+
+HOW TO GET THE DATA VALUES
+For example, a car manufacturer has three designs for a new car and wants to know what the predicted mileage is based on the weight of each new design.
+ In order to do this, you first create a data frame with the new values — for example, like this:
+
+ new.cars <- data.frame(wt=c(1.7, 2.4, 3.6))
+ 
+ 
+ Always make sure the variable names you use are the same as used in the model. When you do that, you simply call the predict() function with the suited arguments, like this:
+ 
+ > predict(Model, newdata=new.cars)
+    1    2    3
+28.19952 24.45839 18.04503
+
+So, the lightest car has a predicted mileage of 28.2 miles per gallon and the heaviest car has a predicted mileage of 18 miles per gallon, according to this model. Of course, 
+if you use an inadequate model, your predictions can be pretty much off as well.
+
+CONFIDENCE IN YOUR PREDICTIONS
+In order to have an idea about the accuracy of the predictions, you can ask for intervals around your prediction. 
+To get a matrix with the prediction and a 95 percent confidence interval around the mean prediction, you set the argument interval to ‘confidence’ like this:
+
+> predict(Model, newdata=new.cars, interval='confidence')
+    fit   lwr   upr
+1 28.19952 26.14755 30.25150
+2 24.45839 23.01617 25.90062
+3 18.04503 16.86172 19.22834
+
+Now you know that — according to your model — a car with a weight of 2.4 tons has, on average, 
+a mileage between 23 and 25.9 miles per gallon.
+In the same way, you can ask for a 95 percent prediction interval by setting the argument interval to ‘prediction’:
+
+
+> predict(Model,newdata=new.cars, interval='prediction')
+    fit   lwr   upr
+1 28.19952 21.64930 34.74975
+2 24.45839 18.07287 30.84392
+3 18.04503 11.71296 24.37710
+
+
+This information tells you that 95 percent of the cars with a weight of 2.4 tons have a mileage somewhere between 18.1 and 30.8 miles per gallon 
+— assuming your model is correct, of course.
+
+If you’d rather construct your own confidence interval, you can get the standard errors on your predictions as well by setting
+ the argument se.fit to TRUE. You don’t get a vector or a matrix; instead, you get a list with an element fit that contains the predictions
+ and an element se.fit that contains the standard errors.
+ 
+ 
+=========================================================
+
+Fifth Method
+##
+Model Performance (AUC/Sensitivity)
+
+
+# Import libraries
+library(tidyr)
+library(dplyr)
+library(corrplot)
+library(xgboost)
+library(e1071)
+library(scales)
+library(caret)
+library(pROC)
+library(rpart)
+library(fastAdaboost)
+
+#Import data
+data = read.csv("../input/creditcard.csv")
+head(data)
+print(colnames(data))
+
+
+set.seed(1987)
+train.test.split <- sample(2
+                           , nrow(data)
+                           , replace = TRUE
+                           , prob = c(0.7, 0.3))
+train = data[train.test.split == 1,]
+test = data[train.test.split == 2,]
+
+
+Generalized Linear Model
+
+glm.model <- glm(Class~., data=train, family = 'binomial')
+glm.pred <- predict(glm.model, test[, colnames(test) != "Class"], type = 'response')
+plot.roc(test$Class, glm.pred, print.auc=TRUE)
+glm.pred.bin <-
+  ifelse(glm.pred >= 0.50,
+         1,
+         0
+  )
+confusionMatrix(test$Class, glm.pred.bin)
+
+
+
+Decision Tree
+
+tree.model <- rpart(Class ~ ., data = train, method = "class", minbucket = 20)
+tree.pred <- predict(tree.model, test[, colnames(test) != "Class"], type= "class")
+tree.pred.prob <- predict(tree.model, test[, colnames(test) != "Class"], type= "prob")
+confusionMatrix(test$Class, tree.pred)
+plot.roc(test$Class, tree.pred.prob[,2], print.auc=TRUE)
+
+
+Adaboost
+
+ada.model <- adaboost(Class~., train, nIter=5)
+ada.pred <- predict(ada.model, test)
+confusionMatrix(test$Class, ada.pred$class)
+plot.roc(test$Class, ada.pred$prob[,2], print.auc=TRUE)
+
+
+XGBoost
+
+dtrain <- xgb.DMatrix(data = as.matrix(train[, colnames(test) != "Class"]), label = train$Class)
+dtest <- xgb.DMatrix(data= as.matrix(test[, colnames(test) != "Class"]), label = test$Class)
+watchlist <- list(train=dtrain, test=dtest)
+params = list(objective = "binary:logistic"
+              , eta = .1
+              , max.depth = 2
+              , nthread = 3
+              , subsample = 0.5
+              , eval_metric = "auc"
+)
+xgb.model <- xgb.train(data=dtrain
+                       , params=params
+                       , watchlist=watchlist
+                       , nrounds=500
+                       , early_stopping_rounds = 100
+                       , print_every_n = 10)
+xgb.pred <- predict(xgb.model, dtest)
+plot.roc(test$Class, xgb.pred, print.auc=TRUE)
+xgb.pred.class <-
+  ifelse(xgb.pred >= 0.50,
+         1,
+         0
+  )
+confusionMatrix(test$Class, xgb.pred.class)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+ 
+ 
+
+
+
+
